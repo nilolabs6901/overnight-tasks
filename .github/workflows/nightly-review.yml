@@ -1,0 +1,121 @@
+name: Nightly Codebase Review
+
+on:
+  # Run every night at 12:30 AM EST (5:30 AM UTC)
+  # Offset 30 min from overnight-tasks.yml to avoid API conflicts
+  schedule:
+    - cron: '30 5 * * *'
+
+  # Allow manual triggering from the GitHub Actions UI
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  review-all-repos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Review all repos with Claude
+        id: review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GH_PAT }}
+          prompt: |
+            Read the CLAUDE.md file in this repository for context about who you're working for.
+
+            You are doing a nightly codebase review across ALL of Kenny's GitHub repositories.
+            Your job is to inspect each repo and write a clear, helpful email with suggestions
+            for improving each project. Keep everything in plain, simple English — Kenny is not a developer.
+
+            Use the gh CLI to inspect these 7 repositories owned by nilolabs6901:
+
+            1. repairiq-final
+            2. forklift-fleet-manager
+            3. sales-sherpa-dashboard
+            4. overnight-tasks
+            5. combilift-prospecting
+            6. old-distill-bill
+            7. deal-registration-app
+
+            For EACH repo, do the following:
+            - Run: gh repo view nilolabs6901/{repo} --json description,updatedAt,pushedAt
+            - List the root files: gh api repos/nilolabs6901/{repo}/contents --jq '.[].name'
+            - Check recent commits (last 5): gh api repos/nilolabs6901/{repo}/commits?per_page=5 --jq '.[].commit.message'
+            - Check for open issues: gh issue list --repo nilolabs6901/{repo} --state open --limit 5
+            - Check for open PRs: gh pr list --repo nilolabs6901/{repo} --state open --limit 5
+            - Check if any recent GitHub Actions runs failed: gh run list --repo nilolabs6901/{repo} --limit 3 --json status,conclusion,name
+            - If a package.json exists, check it for outdated patterns or missing useful scripts
+
+            For each repo, produce a section formatted like this:
+
+            ## {Repo Name}
+            **Last updated:** {date}
+            **Health:** Good / Needs Attention / Stale
+            **Suggestions:**
+            - (2-4 bullet points in plain English describing what could be improved, enhanced, or added)
+
+            After reviewing all repos, add a final section:
+
+            ## Priority Actions
+            List the top 3 things Kenny should focus on next, ranked by business impact.
+            Explain WHY each one matters in 1-2 simple sentences.
+
+            Important rules:
+            - Write like you're talking to a smart business owner, not a programmer.
+            - Focus on things that would make the products better for customers or save Kenny time.
+            - Don't suggest things just for the sake of code cleanliness — focus on real value.
+            - Be specific. Don't say "improve the UI" — say what exactly should change and why.
+            - Keep the total output concise and scannable. No walls of text.
+
+            Write your entire output as the body of an email. Start with:
+            "Hey Kenny, here's your nightly codebase review for today."
+
+      - name: Save review to file
+        run: |
+          cat << 'REVIEW_EOF' > review-report.txt
+          ${{ steps.review.outputs.result }}
+          REVIEW_EOF
+
+      - name: Send email report
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Nightly Codebase Review — ${{ github.run_number }}"
+          to: team@niloagency.com
+          from: ${{ secrets.SMTP_USERNAME }}
+          body: file://review-report.txt
+
+      - name: Create backup issue
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body = 'Review did not produce output. Check the Actions log.';
+            try {
+              body = fs.readFileSync('review-report.txt', 'utf8');
+            } catch (e) {
+              // file doesn't exist, use default message
+            }
+            const today = new Date().toISOString().split('T')[0];
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Nightly Review — ${today}`,
+              body: body,
+              labels: ['nightly-review']
+            });
