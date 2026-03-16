@@ -17,6 +17,8 @@ jobs:
   review-all-repos:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GH_PAT }}
 
     steps:
       - name: Checkout repository
@@ -30,6 +32,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GH_PAT }}
+          allowed_tools: "Bash(gh *),Bash(cat *),Read,Glob,Grep"
           prompt: |
             Read the CLAUDE.md file in this repository for context about who you're working for.
 
@@ -77,14 +80,9 @@ jobs:
             - Be specific. Don't say "improve the UI" — say what exactly should change and why.
             - Keep the total output concise and scannable. No walls of text.
 
-            Write your entire output as the body of an email. Start with:
+            CRITICAL: At the very end, after all your analysis, write the COMPLETE email body
+            to a file called "review-report.txt" using the Write tool. Start the email with:
             "Hey Kenny, here's your nightly codebase review for today."
-
-      - name: Save review to file
-        run: |
-          cat << 'REVIEW_EOF' > review-report.txt
-          ${{ steps.review.outputs.result }}
-          REVIEW_EOF
 
       - name: Send email report
         uses: dawidd6/action-send-mail@v3
