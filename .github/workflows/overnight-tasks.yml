@@ -56,12 +56,14 @@ jobs:
             - If there are no issues labeled "tonight", just report that there were no tasks to process.
             - Work through issues one at a time. Don't skip any.
 
-            CRITICAL: When you are completely done processing all issues, write a short email summary
-            to a file called "task-summary.txt" using the Write tool. Start with:
-            "Hey Kenny, here's a quick summary of what got done overnight."
-            Then list each issue you worked on with a one-line description of what you did.
-            If there were no tasks, just say "No tasks were queued up for tonight — all clear!"
-            End with any issues that need your input (labeled needs-input).
+            CRITICAL: When you are completely done processing all issues, write the email summary
+            to a file called "task-summary.txt" using the Write tool.
+            Format it exactly like this:
+            - Start with the heading "# Overnight Task Summary"
+            - Then: "Hey Kenny! Here is what got done today:"
+            - For each issue, use a numbered heading with the issue title, then bullet points explaining what was done in plain English.
+            - If there were no tasks, just say "No tasks were queued up for tonight — all clear!"
+            - End with any issues that need your input (labeled needs-input).
 
       - name: Send email confirmation
         if: always()
@@ -72,8 +74,8 @@ jobs:
           secure: true
           username: ${{ secrets.SMTP_USERNAME }}
           password: ${{ secrets.SMTP_PASSWORD }}
-          subject: "Overnight Tasks Complete — ${{ github.run_number }}"
-          to: team@niloagency.com
+          subject: "Overnight Task Summary"
+          to: kennygouts@gmail.com
           from: ${{ secrets.SMTP_USERNAME }}
           body: file://task-summary.txt
 
