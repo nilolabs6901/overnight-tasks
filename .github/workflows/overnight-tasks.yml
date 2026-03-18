@@ -21,6 +21,8 @@ jobs:
   process-tasks:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ secrets.GH_PAT }}
 
     steps:
       - name: Checkout repository
@@ -28,28 +30,55 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Run Claude Code on tonight's tasks
+      - name: Run Claude Code on open issues across all repos
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.GH_PAT }}
+          allowed_tools: "Bash(gh *),Bash(curl *),Read,Write,Edit,Glob,Grep"
           prompt: |
             Read the CLAUDE.md file in this repository for context about who you're working for and how to behave.
 
-            Now, find all open GitHub Issues in this repository that have the label "tonight".
+            ## Step 1: Find all open issues across all of Kenny's repos
 
-            For each issue:
-            1. Read the issue title and body carefully to understand what task is being requested.
-            2. Complete the task to the best of your ability.
-               - If the task involves creating or editing files, make the changes on a new branch and open a pull request for Kenny to review. Name the branch after the issue (e.g., issue-5-add-landing-page).
-               - If the task is a question or research task, answer it directly in a comment.
-            3. After completing the task, post a comment on the issue in plain, non-technical English explaining what you did.
-            4. Remove the "tonight" label from the issue.
-            5. Add the "done" label to the issue.
-            6. If a task is unclear or you need more information, post a comment explaining what you need in simple English, remove the "tonight" label, and add the "needs-input" label instead.
+            Run this command to find every open issue across all repos:
+              gh search issues --owner nilolabs6901 --state open --json repository,title,number,body,url,labels
 
-            Important rules:
-            - Never delete files unless the issue explicitly says to.
+            ## Step 2: Work through each issue
+
+            For each open issue you find:
+            1. Read the issue carefully to understand what needs to be done.
+            2. Clone or navigate to the relevant repo using: gh repo clone nilolabs6901/{repoName} /tmp/{repoName}
+            3. Do the work described in the issue (fix bugs, add features, update files, write analysis, etc.)
+            4. If the work involves file changes, commit to a new branch and open a pull request.
+            5. Comment on the issue in plain, non-technical English explaining what you did.
+            6. Add the "done" label (create it first if needed: gh label create "done" --repo nilolabs6901/{repoName} --description "Task completed by Claude" --color "0E8A16" --force)
+            7. If the issue has a "tonight" label, remove it: gh issue edit {number} --repo nilolabs6901/{repoName} --remove-label "tonight"
+
+            If an issue is unclear and you cannot figure out what to do:
+            - Comment explaining what information you need, in plain English.
+            - Add the "needs-input" label (create if needed: gh label create "needs-input" --repo nilolabs6901/{repoName} --description "Claude needs more info from Kenny" --color "FBCA04" --force)
+            - Move on to the next issue.
+
+            Skip any issue that has the label "nightly-review" — those are auto-generated reports, not tasks.
+
+            ## Step 3: Send email summary
+
+            After working through all issues, send Kenny an email summary by running:
+              curl -X POST https://hook.us2.make.com/lxx6hcn3f6ed6rujysxlfxdn5v62w9bl \
+                -H "Content-Type: application/json" \
+                -d '{"summary": "<YOUR HTML SUMMARY HERE>"}'
+
+            The summary should be a clean HTML email with:
+            - A friendly greeting
+            - Each issue worked on: repo name, issue title, what you did, and a PR link if applicable
+            - Any issues skipped due to needing more info
+            - If no open issues: "No open issues tonight — everything is clear!"
+
+            Keep it short, friendly, and easy to scan. Use simple HTML (headers, bullet points, bold). No technical jargon.
+
+            ## Important rules
+            - Never delete files without explicit instruction in the issue
             - Keep all communication simple and non-technical. Kenny is not a developer.
-            - If there are no issues labeled "tonight", just report that there were no tasks to process.
-            - Work through issues one at a time. Don't skip any.
+            - Always create pull requests for code changes — never push directly to master/main
+            - Work through issues one at a time
