@@ -29,10 +29,12 @@ jobs:
           fetch-depth: 1
 
       - name: Run Claude Code on tonight's tasks
+        id: tasks
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          allowed_tools: "Bash(gh *),Bash(cat *),Read,Write,Edit,Glob,Grep"
           prompt: |
             Read the CLAUDE.md file in this repository for context about who you're working for and how to behave.
 
@@ -53,3 +55,45 @@ jobs:
             - Keep all communication simple and non-technical. Kenny is not a developer.
             - If there are no issues labeled "tonight", just report that there were no tasks to process.
             - Work through issues one at a time. Don't skip any.
+
+            CRITICAL: When you are completely done processing all issues, write a short email summary
+            to a file called "task-summary.txt" using the Write tool. Start with:
+            "Hey Kenny, here's a quick summary of what got done overnight."
+            Then list each issue you worked on with a one-line description of what you did.
+            If there were no tasks, just say "No tasks were queued up for tonight — all clear!"
+            End with any issues that need your input (labeled needs-input).
+
+      - name: Send email confirmation
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Overnight Tasks Complete — ${{ github.run_number }}"
+          to: team@niloagency.com
+          from: ${{ secrets.SMTP_USERNAME }}
+          body: file://task-summary.txt
+
+      - name: Create backup issue
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body = 'Overnight tasks ran but did not produce a summary. Check the Actions log.';
+            try {
+              body = fs.readFileSync('task-summary.txt', 'utf8');
+            } catch (e) {
+              // file doesn't exist, use default message
+            }
+            const today = new Date().toISOString().split('T')[0];
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Overnight Tasks Summary — ${today}`,
+              body: body,
+              labels: ['overnight-summary']
+            });
