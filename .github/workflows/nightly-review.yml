@@ -32,7 +32,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GH_PAT }}
-          allowed_tools: "Bash(gh *),Bash(cat *),Read,Glob,Grep"
+          allowed_tools: "Bash(gh *),Bash(cat *),Read,Write,Glob,Grep"
           prompt: |
             Read the CLAUDE.md file in this repository for context about who you're working for.
 
