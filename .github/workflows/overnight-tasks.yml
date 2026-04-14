@@ -35,7 +35,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GH_PAT }}
-          allowed_tools: "Bash(gh *),Bash(curl *),Read,Write,Edit,Glob,Grep"
+          allowed_tools: "Bash(gh *),Read,Write,Edit,Glob,Grep"
           prompt: |
             Read the CLAUDE.md file in this repository for context about who you're working for and how to behave.
 
@@ -62,12 +62,12 @@ jobs:
 
             Skip any issue that has the label "nightly-review" — those are auto-generated reports, not tasks.
 
-            ## Step 3: Send email summary
+            ## Step 3: Write the email summary to a file
 
-            After working through all issues, send Kenny an email summary by running:
-              curl -X POST https://hook.us2.make.com/lxx6hcn3f6ed6rujysxlfxdn5v62w9bl \
-                -H "Content-Type: application/json" \
-                -d '{"summary": "<YOUR HTML SUMMARY HERE>"}'
+            After working through all issues, write Kenny's email summary to the file
+            `/tmp/email-summary.html` using the Write tool. A separate GitHub Actions step
+            (outside of Claude) will pick up that file and POST it to Make.com — don't try
+            to send the email yourself.
 
             The summary should be a clean HTML email with:
             - A friendly greeting
@@ -77,8 +77,40 @@ jobs:
 
             Keep it short, friendly, and easy to scan. Use simple HTML (headers, bullet points, bold). No technical jargon.
 
+            IMPORTANT: If there is truly nothing to report, still write a short summary to
+            `/tmp/email-summary.html` so Kenny gets one clean email. If you have absolutely
+            nothing to say, DO NOT create the file — the email step will be skipped entirely.
+
             ## Important rules
             - Never delete files without explicit instruction in the issue
             - Keep all communication simple and non-technical. Kenny is not a developer.
             - Always create pull requests for code changes — never push directly to master/main
             - Work through issues one at a time
+
+      - name: Send email summary to Kenny
+        if: always()
+        run: |
+          if [ -f /tmp/email-summary.html ]; then
+            python3 <<'PY'
+          import urllib.request, json, sys
+          with open('/tmp/email-summary.html', 'r') as f:
+              summary = f.read().strip()
+          if not summary:
+              print('Summary file is empty — skipping email to avoid sending blanks.')
+              sys.exit(0)
+          payload = json.dumps({'summary': summary}).encode('utf-8')
+          req = urllib.request.Request(
+              'https://hook.us2.make.com/lxx6hcn3f6ed6rujysxlfxdn5v62w9bl',
+              data=payload,
+              headers={'Content-Type': 'application/json'}
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=30) as resp:
+                  print('Email sent! Status:', resp.status)
+          except Exception as e:
+              print('Failed to send email:', e)
+              sys.exit(1)
+          PY
+          else
+            echo 'No summary file found — skipping email (nothing to send).'
+          fi
