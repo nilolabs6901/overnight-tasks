@@ -1,10 +1,9 @@
 name: Nightly Codebase Review
 
 on:
-  # Run every night at 12:30 AM EST (5:30 AM UTC)
-  # Offset 30 min from overnight-tasks.yml to avoid API conflicts
-  schedule:
-    - cron: '30 5 * * *'
+  # Nightly schedule disabled — run manually from the Actions tab when needed.
+  # schedule:
+  #   - cron: '30 5 * * *'
 
   # Allow manual triggering from the GitHub Actions UI
   workflow_dispatch:

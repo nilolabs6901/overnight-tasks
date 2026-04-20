@@ -1,9 +1,9 @@
 name: Overnight Tasks
 
 on:
-  # Run every night at midnight EST (5:00 AM UTC)
-  schedule:
-    - cron: '0 5 * * *'
+  # Nightly schedule disabled — run manually from the Actions tab when needed.
+  # schedule:
+  #   - cron: '0 5 * * *'
 
   # Allow manual triggering from the GitHub Actions UI
   workflow_dispatch:
