@@ -1,9 +1,9 @@
 name: Overnight Tasks
 
 on:
-  # Nightly schedule disabled — run manually from the Actions tab when needed.
-  # schedule:
-  #   - cron: '0 5 * * *'
+  # Run every night at midnight EST (5:00 AM UTC)
+  schedule:
+    - cron: '0 5 * * *'
 
   # Allow manual triggering from the GitHub Actions UI
   workflow_dispatch:
@@ -39,10 +39,19 @@ jobs:
           prompt: |
             Read the CLAUDE.md file in this repository for context about who you're working for and how to behave.
 
-            ## Step 1: Find all open issues across all of Kenny's repos
+            ## Step 1: Find all open issues across Kenny's active repos
 
-            Run this command to find every open issue across all repos:
-              gh search issues --owner nilolabs6901 --state open --json repository,title,number,body,url,labels
+            Only process issues from these 4 repositories owned by nilolabs6901:
+              - paperclip-combilift
+              - Telegram-bot-starter
+              - Important-doc-autoMation
+              - cardnurture
+
+            For each of those 4 repos, run:
+              gh issue list --repo nilolabs6901/{repoName} --state open --json number,title,body,url,labels,repository
+
+            Combine the results into one list and work through them in Step 2.
+            Do NOT process issues from any other repository.
 
             ## Step 2: Work through each issue
 
