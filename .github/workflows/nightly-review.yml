@@ -34,9 +34,14 @@ jobs:
           prompt: |
             Read the CLAUDE.md file in this repository for context about who you're working for.
 
-            You are doing a nightly codebase review across ALL of Kenny's GitHub repositories.
-            Your job is to inspect each repo and write a clear, helpful email with suggestions
-            for improving each project. Keep everything in plain, simple English — Kenny is not a developer.
+            You are doing a nightly codebase review.
+            Your job is to inspect each repo listed below and write a clear, helpful email with
+            suggestions for improving each project. Keep everything in plain, simple English —
+            Kenny is not a developer.
+
+            IMPORTANT: Review ONLY the 4 repositories listed below. Do NOT run
+            `gh repo list` or discover other repos. Do NOT review any repo that
+            is not on this list, even if you see it referenced elsewhere.
 
             Use the gh CLI to inspect these 4 repositories owned by nilolabs6901:
 
