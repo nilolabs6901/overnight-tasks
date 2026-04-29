@@ -30,59 +30,150 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GH_PAT }}
-          allowed_tools: "Bash(gh *),Bash(cat *),Read,Write,Glob,Grep"
+          allowed_tools: "Bash(gh *),Bash(git *),Bash(date *),Bash(sort *),Bash(uniq *),Bash(head *),Bash(cat *),Bash(awk *),Bash(grep *),Read,Write,Glob,Grep"
           prompt: |
             Read the CLAUDE.md file in this repository for context about who you're working for.
 
-            You are doing a nightly codebase review.
-            Your job is to inspect each repo listed below and write a clear, helpful email with
-            suggestions for improving each project. Keep everything in plain, simple English —
-            Kenny is not a developer.
+            You are doing a nightly codebase review for Kenny. Kenny is non-technical.
+            Your output is a SHORT, SPECIFIC email — every suggestion must be tied to
+            actual code, actual commits, or actual issues. Never to generic best practices.
 
-            IMPORTANT: Review ONLY the 4 repositories listed below. Do NOT run
-            `gh repo list` or discover other repos. Do NOT review any repo that
-            is not on this list, even if you see it referenced elsewhere.
+            ────────────────────────────────────────────────────────────
+            STEP 1 — PICK WHICH 2 REPOS TO REVIEW (rotation)
+            ────────────────────────────────────────────────────────────
+            We rotate so each repo gets a DEEP review every other night, not a shallow
+            review every night. Run `date +%d` to get today's day-of-month.
 
-            Use the gh CLI to inspect these 4 repositories owned by nilolabs6901:
+            If today's day-of-month is EVEN, deeply review:
+              1. paperclip-combilift
+              2. Telegram-bot-starter
 
-            1. paperclip-combilift
-            2. Telegram-bot-starter
-            3. Important-doc-autoMation
-            4. cardnurture
+            If ODD, deeply review:
+              1. Important-doc-autoMation
+              2. cardnurture
 
-            For EACH repo, do the following:
-            - Run: gh repo view nilolabs6901/{repo} --json description,updatedAt,pushedAt
-            - List the root files: gh api repos/nilolabs6901/{repo}/contents --jq '.[].name'
-            - Check recent commits (last 5): gh api repos/nilolabs6901/{repo}/commits?per_page=5 --jq '.[].commit.message'
-            - Check for open issues: gh issue list --repo nilolabs6901/{repo} --state open --limit 5
-            - Check for open PRs: gh pr list --repo nilolabs6901/{repo} --state open --limit 5
-            - Check if any recent GitHub Actions runs failed: gh run list --repo nilolabs6901/{repo} --limit 3 --json status,conclusion,name
-            - If a package.json exists, check it for outdated patterns or missing useful scripts
+            Do NOT review the other pair — they get their turn tomorrow. Do NOT run
+            `gh repo list` or discover other repos.
 
-            For each repo, produce a section formatted like this:
+            ────────────────────────────────────────────────────────────
+            STEP 2 — MEMORY: READ THE LAST 3 REVIEWS BEFORE WRITING
+            ────────────────────────────────────────────────────────────
+            Fetch the last 3 nightly-review issue bodies from THIS repo:
+
+              gh issue list --repo nilolabs6901/overnight-tasks \
+                --label nightly-review --state all --limit 3 \
+                --json number,title,body
+
+            Read all 3 bodies fully. Build a mental list of every suggestion that has
+            already been made. You are FORBIDDEN from repeating any of them. If a
+            suggestion you want to write was already made, either:
+              (a) skip it, or
+              (b) replace it with a strictly deeper version that names a NEW file,
+                  line, or function the previous version didn't mention.
+
+            ────────────────────────────────────────────────────────────
+            STEP 3 — DEPTH PASS (for EACH of the 2 chosen repos)
+            ────────────────────────────────────────────────────────────
+            Use `git -C` so you don't need to cd. Clone to /tmp:
+
+              gh repo clone nilolabs6901/{repo} /tmp/{repo}
+
+            Then for each repo, gather REAL signal:
+
+            (a) What changed in the last 7 days:
+                git -C /tmp/{repo} log --since="7 days ago" --pretty=format:"%h %s" --stat
+
+            (b) The 3 most-changed files this week:
+                git -C /tmp/{repo} log --since="7 days ago" --pretty=format: --name-only \
+                  | sort | uniq -c | sort -rn | head -5
+
+            (c) Read those 3 files with the Read tool. Scan specifically for:
+                - TODO / FIXME / XXX comments → real, named tech debt
+                - Empty try/except or catch blocks → silent failures
+                - Hardcoded URLs, API keys, magic numbers
+                - Commented-out code (dead weight)
+                - Bugs visible in the most recent diffs
+
+            (d) Open issues and failed runs:
+                gh issue list --repo nilolabs6901/{repo} --state open --limit 10
+                gh run list --repo nilolabs6901/{repo} --status failure --limit 5
+
+            (e) If package.json or pyproject.toml exists, read it. Note specific
+                dependencies that are unused or pinned to old majors.
+
+            ────────────────────────────────────────────────────────────
+            STEP 4 — OUTPUT FORMAT (strict)
+            ────────────────────────────────────────────────────────────
+            For EACH of the 2 reviewed repos:
 
             ## {Repo Name}
-            **Last updated:** {date}
+            **Activity this week:** {N commits, M files changed}  — or  "Quiet week — no commits in 7 days"
             **Health:** Good / Needs Attention / Stale
             **Suggestions:**
-            - (2-4 bullet points in plain English describing what could be improved, enhanced, or added)
+            - {Concrete fix or improvement}. **File:** `path/to/file.py:42`. **Why it matters to your business:** {one sentence in plain English}.
+            - {Concrete fix}. **Commit:** `abc1234`. **Why it matters:** {one sentence}.
 
-            After reviewing all repos, add a final section:
+            Maximum 4 bullets per repo. Minimum 0 — if you have nothing specific to
+            say, write a single line: "Quiet week — nothing new to flag." That is
+            a perfectly acceptable answer. Do NOT invent work.
 
-            ## Priority Actions
-            List the top 3 things Kenny should focus on next, ranked by business impact.
-            Explain WHY each one matters in 1-2 simple sentences.
+            After both repos, add ONE final section:
 
-            Important rules:
-            - Write like you're talking to a smart business owner, not a programmer.
-            - Focus on things that would make the products better for customers or save Kenny time.
-            - Don't suggest things just for the sake of code cleanliness — focus on real value.
-            - Be specific. Don't say "improve the UI" — say what exactly should change and why.
-            - Keep the total output concise and scannable. No walls of text.
+            ## Priority Action This Week
+            Pick the SINGLE most important item from the suggestions above. Reference
+            it by repo and file. One short paragraph explaining the business impact.
+            (One item, not three. If nothing rises to "priority," say "Nothing urgent
+            this week — everything's healthy.")
 
-            CRITICAL: At the very end, after all your analysis, write the COMPLETE email body
-            to a file called "review-report.txt" using the Write tool. Start the email with:
-            "Hey Kenny, here's your nightly codebase review for today."
+            End the email with one line:
+            "Tonight covered: {repoA}, {repoB}. Tomorrow: {repoC}, {repoD}."
+
+            ────────────────────────────────────────────────────────────
+            HARD RULES (override anything above if they conflict)
+            ────────────────────────────────────────────────────────────
+            ❌ NO "## Ideas for Each Project" section.
+            ❌ NO "## New Project Ideas" section.
+            ❌ NO bullet without a file path (with line number) or commit SHA.
+               If you can't cite one, DELETE THE BULLET. Don't soften the rule.
+            ❌ NO repeating any suggestion from the last 3 reviews. Check first.
+            ❌ NO suggestions of these generic types unless tied to a specific failing
+               thing in the code you actually read:
+                 - "Add CI/CD"
+                 - "Add backups"
+                 - "Add Telegram alerts"
+                 - "Add monitoring"
+                 - "Improve test coverage"
+                 - "Add documentation"
+                 - Any "AI-powered X" idea where X is just the project name + buzzword
+            ❌ NO walls of text. Each bullet under 60 words.
+            ✅ ONE specific bullet beats four generic ones. Always.
+            ✅ "Quiet week — nothing to flag" is a fine output. Don't pad.
+
+            ────────────────────────────────────────────────────────────
+            WRITING STYLE
+            ────────────────────────────────────────────────────────────
+            Talk to Kenny like a smart business owner who isn't a developer.
+            Concrete is better than clever. Examples of GOOD vs BAD bullets:
+
+            BAD:  "Consider adding monitoring to catch errors early."
+            GOOD: "The `send_connection_request` function in `linkedin_bot.py:142`
+                   catches all exceptions and logs nothing — this is why some daily
+                   runs go to zero connections without warning. **File:**
+                   `linkedin_bot.py:142`. **Why it matters:** silent bot failures
+                   mean missed Combilift sales conversations."
+
+            BAD:  "Improve the UI of the dashboard."
+            GOOD: "The prospect kanban in `app/pipeline/page.tsx:88` re-renders the
+                   entire board on every drag, which is why it stutters on your phone.
+                   Memoizing the column components would fix it. **File:**
+                   `app/pipeline/page.tsx:88`. **Why it matters:** smoother mobile
+                   experience when you're updating prospects between meetings."
+
+            ────────────────────────────────────────────────────────────
+            FINAL STEP
+            ────────────────────────────────────────────────────────────
+            Write the COMPLETE email body to "review-report.txt" using the Write tool.
+            Start with: "Hey Kenny, here's your nightly codebase review for today."
 
       - name: Send email report
         uses: dawidd6/action-send-mail@v3
