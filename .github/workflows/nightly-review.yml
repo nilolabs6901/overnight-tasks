@@ -30,7 +30,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GH_PAT }}
-          allowed_tools: "Bash(gh *),Bash(git *),Bash(date *),Bash(sort *),Bash(uniq *),Bash(head *),Bash(cat *),Bash(awk *),Bash(grep *),Read,Write,Glob,Grep"
+          allowed_tools: "Bash(gh *),Bash(git *),Bash(date *),Bash(sort *),Bash(uniq *),Bash(head *),Bash(tail *),Bash(cat *),Bash(awk *),Bash(grep *),Bash(sed *),Bash(wc *),Bash(ls *),Bash(find *),Bash(echo *),Bash(test *),Bash(true *),Read,Write,Glob,Grep"
           prompt: |
             Read the CLAUDE.md file in this repository for context about who you're working for.
 
@@ -175,7 +175,25 @@ jobs:
             Write the COMPLETE email body to "review-report.txt" using the Write tool.
             Start with: "Hey Kenny, here's your nightly codebase review for today."
 
+      - name: Ensure report file exists
+        if: always()
+        run: |
+          if [ ! -s review-report.txt ]; then
+            cat > review-report.txt <<EOF
+          Hey Kenny — tonight's codebase review didn't complete successfully.
+
+          The automated review step exited before producing a report. The GitHub
+          Actions log for run #${{ github.run_number }} has the details:
+          ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          A backup issue has been opened in the overnight-tasks repo so this
+          doesn't get lost. No action needed from you tonight — Claude will
+          investigate on the next session.
+          EOF
+          fi
+
       - name: Send email report
+        if: always()
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
